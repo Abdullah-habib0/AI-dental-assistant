@@ -1,0 +1,5 @@
+# Only needed to run the tests, not to run the app.
+-r requirements.txt
+pytest
+pytest-asyncio
+httpx
