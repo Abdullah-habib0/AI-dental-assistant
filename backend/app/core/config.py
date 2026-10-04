@@ -8,6 +8,13 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./clinic.db"
 
+    # No default on purpose. If this is missing from .env the app refuses to start,
+    # which is far better than quietly signing tokens with a key everyone can guess.
+    secret_key: str
+    jwt_algorithm: str = "HS256"
+    access_token_minutes: int = 15
+    refresh_token_days: int = 7
+
     clinic_name: str = "Bright Smile Dental"
     clinic_phone: str = "+44 20 7946 0123"
     clinic_email: str = "hello@brightsmile.example"

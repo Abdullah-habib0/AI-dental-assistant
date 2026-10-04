@@ -3,3 +3,7 @@ uvicorn[standard]
 sqlalchemy[asyncio]
 aiosqlite
 pydantic-settings
+email-validator
+pyjwt
+bcrypt
+tzdata
