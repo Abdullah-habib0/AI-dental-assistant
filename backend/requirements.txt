@@ -1,3 +1,5 @@
+# PyTorch's own index has CPU-only builds, which are much smaller than the default.
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi
 uvicorn[standard]
 sqlalchemy[asyncio]
@@ -7,3 +9,7 @@ email-validator
 pyjwt
 bcrypt
 tzdata
+torch
+transformers
+qdrant-client
+pypdf

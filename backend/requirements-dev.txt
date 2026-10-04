@@ -1,5 +1,6 @@
-# Only needed to run the tests, not to run the app.
+# Only needed for development (tests and helper scripts), not to run the app.
 -r requirements.txt
 pytest
 pytest-asyncio
 httpx
+reportlab   # builds the knowledge-base PDFs (scripts/build_knowledge_pdfs.py)
