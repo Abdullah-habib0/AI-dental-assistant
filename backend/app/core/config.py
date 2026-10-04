@@ -15,6 +15,19 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 7
 
+    # Knowledge base (RAG). Changing the embedding model means running the ingest script
+    # again - search refuses to mix vectors from two different models.
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    knowledge_dir: str = "./data/knowledge"
+    qdrant_path: str = "./qdrant_data"
+    knowledge_collection: str = "clinic_knowledge"
+    knowledge_max_chunk_tokens: int = 400  # the model reads 512 at most; room left for the label
+    # Measured on 24 test questions with bge-small-en-v1.5: answerable ones scored 0.595-0.890,
+    # unanswerable ones 0.381-0.694. The ranges overlap, so this only filters out clearly
+    # off-topic questions without losing real answers. The agent must still check that the
+    # passages it gets actually answer the question. Re-measure if the model changes.
+    knowledge_min_score: float = 0.55
+
     clinic_name: str = "Bright Smile Dental"
     clinic_phone: str = "+44 20 7946 0123"
     clinic_email: str = "hello@brightsmile.example"
