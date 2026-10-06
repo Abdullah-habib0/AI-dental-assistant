@@ -20,6 +20,7 @@ import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
+from app.core.rate_limiting import ALL_LIMITS  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.init_db import create_tables  # noqa: E402
 from app.db.session import SessionLocal, engine  # noqa: E402
@@ -38,7 +39,10 @@ def _fresh_copy(row):
 
 @pytest.fixture(autouse=True)
 async def db():
-    """Runs before every test: empty database, clinic data loaded, nothing booked."""
+    """Runs before every test: empty database, clinic data loaded, nothing booked, and
+    rate limits back to zero."""
+    for limit in ALL_LIMITS:
+        limit.reset()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await create_tables(engine)

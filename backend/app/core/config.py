@@ -8,12 +8,23 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./clinic.db"
 
+    # Websites allowed to call this API from a browser. Add the deployed frontend's
+    # address here (in .env as a JSON list: CORS_ORIGINS=["https://my-site.vercel.app"]).
+    cors_origins: list[str] = ["http://localhost:3000"]
+
     # No default on purpose. If this is missing from .env the app refuses to start,
     # which is far better than quietly signing tokens with a key everyone can guess.
     secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
     refresh_token_days: int = 7
+
+    # AI agent, via Groq. The key is optional so the app and tests run without it; only
+    # the chat needs it, and it says so clearly if it's missing.
+    groq_api_key: str | None = None
+    llm_model: str = "openai/gpt-oss-120b"
+    safety_model: str = "openai/gpt-oss-20b"  # smaller and faster; it only sorts messages
+    agent_max_steps: int = 8  # tool calls allowed for one message, so a confused model can't loop forever
 
     # Knowledge base (RAG). Changing the embedding model means running the ingest script
     # again - search refuses to mix vectors from two different models.
