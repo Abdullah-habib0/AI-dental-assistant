@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiting import auth_per_minute
 from app.db.session import get_session
 from app.features.auth import service
 from app.features.auth.dependencies import CurrentUser
@@ -20,7 +21,12 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 _Session = Annotated[AsyncSession, Depends(get_session)]
 
 
-@router.post("/register", response_model=TokenPair, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=TokenPair,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(auth_per_minute)],
+)
 async def register(data: RegisterRequest, session: _Session):
     try:
         _user, access_token, refresh_token = await service.register(session, data)
@@ -30,7 +36,7 @@ async def register(data: RegisterRequest, session: _Session):
     return TokenPair(access_token=access_token, refresh_token=refresh_token)
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post("/login", response_model=TokenPair, dependencies=[Depends(auth_per_minute)])
 async def login(data: LoginRequest, session: _Session):
     try:
         _user, access_token, refresh_token = await service.login(session, data)

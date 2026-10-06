@@ -13,3 +13,8 @@ torch
 transformers
 qdrant-client
 pypdf
+langgraph
+langchain-groq
+# 0.17.1's compiled file is blocked by Windows Smart App Control on the dev machine; 0.17.0 isn't.
+# Needed by langchain-core and langsmith. Remove this pin if that ever changes.
+uuid_utils==0.17.0

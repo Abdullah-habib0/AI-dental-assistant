@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 from app.core.config import settings
@@ -19,6 +20,17 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title=f"{settings.clinic_name} - AI Front Desk", lifespan=lifespan)
+
+# Browsers block a page on one address from calling an API on another unless the API
+# allows it. Only the listed websites are allowed. Logins travel in the Authorization
+# header, not in cookies, so credentials (cookies) stay switched off.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+
 app.include_router(api_router, prefix="/api/v1")
 
 
