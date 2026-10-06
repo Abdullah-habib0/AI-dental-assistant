@@ -11,7 +11,8 @@ lock is never held for longer than the operation itself.
 
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,7 @@ from app.features.scheduling.models import Appointment, AppointmentSlot, Patient
 from app.features.scheduling.opening_hrs import is_slot_start, slots_between
 
 _STEP = timedelta(minutes=settings.slot_minutes)
+_CLINIC_TZ = ZoneInfo(settings.clinic_timezone)
 MAX_SEARCH_DAYS = 31
 MAX_DAYS_AHEAD = 90
 
@@ -330,3 +332,53 @@ async def get_my_upcoming_appointments(
         if patient is None:
             return []
         return await repository.get_upcoming_appointments(session, patient.id, utcnow())
+
+
+# --- Checks that change nothing -----------------------------------------------------
+# Used to show the patient a summary before anything happens. They apply the same rules
+# as the real actions above - and the real actions still check everything again in
+# their own transaction, because things can change between the summary and the "yes".
+
+
+async def check_booking(
+    session: AsyncSession, service_slug: str, dentist_slug: str, start_time: datetime, phone: str
+):
+    """Raise the same error book_appointment would, if this booking wouldn't work right now.
+    Returns the treatment and the dentist, for the summary."""
+    async with session.begin():
+        treatment = await clinic_service.get_service(session, service_slug)
+        dentist = await clinic_service.get_dentist(session, dentist_slug)
+    _tidy_phone(phone)
+    _check_start_time(start_time, _slots_needed(treatment.duration_minutes))
+
+    clinic_day = start_time.replace(tzinfo=UTC).astimezone(_CLINIC_TZ).date()
+    free = await find_available_slots(session, service_slug, clinic_day, clinic_day, dentist_slug)
+    if start_time not in {slot.start_time for slot in free}:
+        raise SlotTaken("Sorry, that time isn't free. Please pick another.")
+    return treatment, dentist
+
+
+async def check_owned_appointment(
+    session: AsyncSession, appointment_id: int, user: User | None = None, phone: str | None = None
+) -> Appointment:
+    """The appointment, if it's upcoming, confirmed and belongs to whoever is asking."""
+    async with session.begin():
+        return await _get_owned_appointment(session, appointment_id, user, phone)
+
+
+async def check_reschedule(
+    session: AsyncSession,
+    appointment_id: int,
+    new_start_time: datetime,
+    user: User | None = None,
+    phone: str | None = None,
+) -> Appointment:
+    """Raise the same error reschedule_appointment would for the patient or the time.
+
+    Whether the new time is free is only checked when the move really happens: the
+    appointment's own current slots can overlap the new time, and only the real move
+    (which frees them first) can tell.
+    """
+    appointment = await check_owned_appointment(session, appointment_id, user, phone)
+    _check_start_time(new_start_time, (appointment.end_time - appointment.start_time) // _STEP)
+    return appointment

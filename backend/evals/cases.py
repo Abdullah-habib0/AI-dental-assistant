@@ -134,7 +134,7 @@ CASES: list[Case] = [
             used_tool("find_available_times"), not_booked("Sara Ahmed"),
         ]),
         Step("10:00 please. I'm Sara Ahmed, my mobile is 07700 900456.", [
-            not_booked("Sara Ahmed"), did_not_use_tool("book_appointment"),
+            not_booked("Sara Ahmed"), did_not_use_tool("confirm_action"),
         ]),
         Step("Yes, that's all correct, please book it.", [
             booked("Sara Ahmed", "mei-tanaka", at(WED, 10)),
@@ -142,7 +142,7 @@ CASES: list[Case] = [
     ], note="Step 2 checks it reads the details back instead of booking straight away."),
     Case("time already taken", "appointments", [
         Step(f"Can I book a filling with Dr Omar Haddad on {said(WED)} at 11:00? I'm Tom Lee, 07700 900789.", [
-            not_booked("Tom Lee"), did_not_use_tool("book_appointment"),
+            not_booked("Tom Lee"), did_not_use_tool("confirm_action"),
             used_tool("find_available_times"),  # it checked the diary rather than assuming
             says("11:30", "10:30", "12:00"),  # and offered real free times nearby
         ]),

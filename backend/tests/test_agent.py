@@ -14,11 +14,15 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent import prompts, tools
 from app.agent.graph import build_agent_graph, run_turn
+from sqlalchemy import select
+
 from app.db.session import SessionLocal
-from app.features.clinic import service as clinic_service
 from app.features.auth.models import User
+from app.features.clinic import service as clinic_service
 from app.features.knowledge.service import Passage
-from tests.conftest import next_monday
+from app.features.scheduling import service as scheduling
+from app.features.scheduling.models import Appointment
+from tests.conftest import clinic_time, next_monday
 
 GUEST = {"configurable": {"user": None}}
 ALI_PHONE = "07700 900123"
@@ -55,6 +59,26 @@ async def make_user() -> User:
 
 def monday_at(hour, minute=0):
     return f"{next_monday().isoformat()} {hour:02d}:{minute:02d}"
+
+
+async def book_directly(start: str, user=None, treatment="check-up-and-clean", dentist="mei-tanaka"):
+    """Set up a booking without going through the agent. `start` is like monday_at(10)."""
+    hour, minute = map(int, start.split()[1].split(":"))
+    async with SessionLocal() as session:
+        return await scheduling.book_appointment(
+            session, treatment, dentist, clinic_time(next_monday(), hour, minute),
+            scheduling.PatientDetails("Ali Khan", ALI_PHONE), user=user,
+        )
+
+
+async def appointment_count() -> int:
+    async with SessionLocal() as session:
+        return len((await session.scalars(select(Appointment).where(Appointment.status == "confirmed"))).all())
+
+
+async def scheduling_appointment(appointment_id: int) -> Appointment:
+    async with SessionLocal() as session:
+        return await session.get(Appointment, appointment_id)
 
 
 # --- The agent's instructions --------------------------------------------------------
@@ -119,56 +143,140 @@ async def test_find_available_times_explains_bad_input():
     assert "2026-10-07" in out  # tells the model the format it should use
 
 
-async def test_book_find_reschedule_cancel_as_a_guest():
-    booked = await tools.book_appointment.ainvoke(
-        {"service_slug": "teeth-whitening", "dentist_slug": "omar-haddad", "start_time": monday_at(13),
-         "full_name": "Ali Khan", "phone": ALI_PHONE},
-        config=GUEST,
+async def test_prepare_tools_change_nothing_and_summarise():
+    whitening = {"service_slug": "teeth-whitening", "dentist_slug": "omar-haddad",
+                 "full_name": "Ali Khan", "phone": ALI_PHONE}
+    summary = await tools.prepare_booking.ainvoke({**whitening, "start_time": monday_at(13)}, config=GUEST)
+    assert summary.startswith("Ready to book - NOT booked yet")
+    assert "Teeth Whitening with Dr Omar Haddad" in summary and "13:00 to 14:00" in summary
+    assert await appointment_count() == 0  # prepared, not booked
+
+    appointment = await book_directly(monday_at(13), treatment="teeth-whitening", dentist="omar-haddad")
+    cancel = await tools.prepare_cancellation.ainvoke({"appointment_id": appointment.id, "phone": ALI_PHONE}, config=GUEST)
+    move = await tools.prepare_reschedule.ainvoke(
+        {"appointment_id": appointment.id, "new_start_time": monday_at(15), "phone": ALI_PHONE}, config=GUEST
     )
-    assert booked.startswith("Booked.")
-    assert "Teeth Whitening with Dr Omar Haddad" in booked and "13:00 to 14:00" in booked
-    appointment_id = int(booked.split("#")[1].split(":")[0])
-
-    assert "Ask the patient" in await tools.find_my_appointments.ainvoke({}, config=GUEST)
-    mine = await tools.find_my_appointments.ainvoke({"phone": "07700-900123"}, config=GUEST)
-    assert f"Appointment #{appointment_id}" in mine
-
-    moved = await tools.reschedule_appointment.ainvoke(
-        {"appointment_id": appointment_id, "new_start_time": monday_at(15), "phone": ALI_PHONE}, config=GUEST
-    )
-    assert moved.startswith("Moved.") and "15:00 to 16:00" in moved
-
-    wrong = await tools.cancel_appointment.ainvoke({"appointment_id": appointment_id, "phone": "07700 999999"}, config=GUEST)
-    assert wrong.startswith("Not cancelled")
-    done = await tools.cancel_appointment.ainvoke({"appointment_id": appointment_id, "phone": ALI_PHONE}, config=GUEST)
-    assert done.startswith("Cancelled.") and "(cancelled)" in done
+    assert cancel.startswith("Ready to cancel - NOT cancelled yet") and move.startswith("Ready to move - NOT moved yet")
+    assert (await scheduling_appointment(appointment.id)).status == "confirmed"  # still untouched
 
 
-async def test_booking_problems_come_back_as_text_the_model_can_explain():
+async def test_prepare_tools_refuse_what_would_fail():
     details = {"service_slug": "teeth-whitening", "dentist_slug": "omar-haddad",
                "full_name": "Ali Khan", "phone": ALI_PHONE}
-    await tools.book_appointment.ainvoke({**details, "start_time": monday_at(13)}, config=GUEST)
+    await book_directly(monday_at(13), treatment="teeth-whitening", dentist="omar-haddad")
 
-    taken = await tools.book_appointment.ainvoke({**details, "start_time": monday_at(13), "phone": "07700 111111"}, config=GUEST)
-    assert taken.startswith("Not booked:") and "other times" in taken
-    odd = await tools.book_appointment.ainvoke({**details, "start_time": monday_at(13, 17)}, config=GUEST)
-    assert odd.startswith("Not booked:")
-    garbled = await tools.book_appointment.ainvoke({**details, "start_time": "Monday at 1pm"}, config=GUEST)
+    taken = await tools.prepare_booking.ainvoke({**details, "start_time": monday_at(13), "phone": "07700 111111"}, config=GUEST)
+    assert taken.startswith("Can't book this:") and "other times" in taken
+    odd = await tools.prepare_booking.ainvoke({**details, "start_time": monday_at(13, 17)}, config=GUEST)
+    assert odd.startswith("Can't book this:")
+    garbled = await tools.prepare_booking.ainvoke({**details, "start_time": "Monday at 1pm"}, config=GUEST)
     assert "must look like" in garbled
+    bad_phone = await tools.prepare_booking.ainvoke({**details, "start_time": monday_at(9), "phone": "123"}, config=GUEST)
+    assert bad_phone.startswith("Can't book this:")
 
 
-async def test_the_login_comes_from_config_not_from_the_model():
+async def test_find_my_appointments_as_guest_and_logged_in():
     user = await make_user()
     logged_in = {"configurable": {"user": user}}
-    await tools.book_appointment.ainvoke(
-        {"service_slug": "check-up-and-clean", "dentist_slug": "mei-tanaka", "start_time": monday_at(10),
-         "full_name": "Ali Khan", "phone": ALI_PHONE},
-        config=logged_in,
-    )
+    await book_directly(monday_at(10), user=user)
+
+    assert "Ask the patient" in await tools.find_my_appointments.ainvoke({}, config=GUEST)
     # Logged in: found with no phone number at all.
     assert "Check-up & Clean" in await tools.find_my_appointments.ainvoke({}, config=logged_in)
     # A guest typing the same number does not see the account holder's booking.
     assert "No upcoming appointments" in await tools.find_my_appointments.ainvoke({"phone": ALI_PHONE}, config=GUEST)
+    # Nor can they prepare to cancel it.
+    cancel = await tools.prepare_cancellation.ainvoke({"appointment_id": 1, "phone": ALI_PHONE}, config=GUEST)
+    assert cancel.startswith("Can't cancel this")
+
+
+# --- Confirming is a rule in code: the patient must reply to the summary first -------
+
+
+PREPARE_SARA = calls("prepare_booking", service_slug="check-up-and-clean", dentist_slug="mei-tanaka",
+                     start_time=None, full_name="Sara Ahmed", phone="07700 900456")
+
+
+def prepare_sara(hour=10):
+    message = PREPARE_SARA.model_copy(deep=True)
+    message.tool_calls[0]["args"]["start_time"] = monday_at(hour)
+    return message
+
+
+async def turn(history, says, *model_replies, user=None):
+    result = await run_turn(graph_with(scripted(*model_replies)), history, says, user=user)
+    return history + result.new_messages, result
+
+
+def tool_said(result, name):
+    return next(m.content for m in result.new_messages if isinstance(m, ToolMessage) and m.name == name)
+
+
+async def test_preparing_and_confirming_in_the_same_turn_is_refused():
+    """The exact mistake the eval caught: acting before the patient had said yes."""
+    _, result = await turn([], "Book me in with Dr Tanaka at 10, I'm Sara, 07700 900456",
+                           prepare_sara(), calls("confirm_action"), AIMessage("Done!"))
+    assert "hasn't replied" in tool_said(result, "confirm_action")
+    assert await appointment_count() == 0
+
+
+async def test_confirming_after_the_patient_replies_books_it():
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    _, result = await turn(history, "Yes please", calls("confirm_action"), AIMessage("Booked!"))
+    assert tool_said(result, "confirm_action").startswith("Booked.")
+    assert await appointment_count() == 1
+
+
+async def test_an_old_summary_cant_be_confirmed_after_the_patient_moves_on():
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    history, _ = await turn(history, "Actually, is there parking?", AIMessage("Yes, on the street."))
+    _, result = await turn(history, "ok", calls("confirm_action"), AIMessage("Booked!"))
+    assert "said more since" in tool_said(result, "confirm_action")
+    assert await appointment_count() == 0
+
+
+async def test_one_yes_confirms_only_once():
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    _, result = await turn(history, "Yes", calls("confirm_action"), calls("confirm_action"), AIMessage("Booked!"))
+    replies = [m.content for m in result.new_messages if isinstance(m, ToolMessage) and m.name == "confirm_action"]
+    assert replies[0].startswith("Booked.") and "already dealt with" in replies[1]
+    assert await appointment_count() == 1
+
+
+async def test_nothing_to_confirm_when_nothing_was_prepared_or_it_failed():
+    _, result = await turn([], "yes", calls("confirm_action"), AIMessage("Hmm."))
+    assert "Nothing has been prepared" in tool_said(result, "confirm_action")
+
+    await book_directly(monday_at(10))  # Mei's 10:00 is now taken, so the prepare fails
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("That time is taken."))
+    _, result = await turn(history, "yes", calls("confirm_action"), AIMessage("Hmm."))
+    assert "didn't pass its checks" in tool_said(result, "confirm_action")
+    assert await appointment_count() == 1  # only the one booked directly
+
+
+async def test_a_time_taken_between_summary_and_yes_changes_nothing():
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    await book_directly(monday_at(10))  # someone else gets there first
+    _, result = await turn(history, "Yes", calls("confirm_action"), AIMessage("Sorry."))
+    assert "Nothing was changed" in tool_said(result, "confirm_action")
+    assert await appointment_count() == 1
+
+
+async def test_cancel_and_move_go_through_confirm_too():
+    appointment = await book_directly(monday_at(10))
+    history, _ = await turn([], "Move it to 15:00", calls(
+        "prepare_reschedule", appointment_id=appointment.id, new_start_time=monday_at(15), phone=ALI_PHONE,
+    ), AIMessage("Shall I move it?"))
+    assert (await scheduling_appointment(appointment.id)).start_time == clinic_time(next_monday(), 10)
+
+    history, _ = await turn(history, "Yes", calls("confirm_action"), AIMessage("Moved."))
+    assert (await scheduling_appointment(appointment.id)).start_time == clinic_time(next_monday(), 15)
+
+    history, _ = await turn(history, "Actually cancel it", calls(
+        "prepare_cancellation", appointment_id=appointment.id, phone=ALI_PHONE,
+    ), AIMessage("Cancel it?"))
+    await turn(history, "Yes", calls("confirm_action"), AIMessage("Cancelled."))
+    assert (await scheduling_appointment(appointment.id)).status == "cancelled"
 
 
 async def test_search_formats_passages_with_their_source(monkeypatch):
@@ -234,11 +342,7 @@ async def test_routine_message_goes_through_a_tool_then_answers():
 
 async def test_the_login_reaches_the_tools_through_the_graph():
     user = await make_user()
-    await tools.book_appointment.ainvoke(
-        {"service_slug": "check-up-and-clean", "dentist_slug": "mei-tanaka", "start_time": monday_at(10),
-         "full_name": "Ali Khan", "phone": ALI_PHONE},
-        config={"configurable": {"user": user}},
-    )
+    await book_directly(monday_at(10), user=user)
     model = scripted(calls("find_my_appointments"), AIMessage("You have one appointment."))
     turn = await run_turn(graph_with(model), [], "What appointments do I have?", user=user)
 

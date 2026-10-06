@@ -168,10 +168,12 @@ FAQS = [
     ),
     Faq(
         category="Payment",
-        question="How much does a check-up cost?",
+        question="How much does treatment cost?",
+        # No amounts here on purpose: prices live in the services table only, so changing
+        # a price can never leave an old figure behind in an FAQ.
         answer=(
-            "A check-up and clean is 65 pounds. You can see all our prices on the "
-            "services page."
+            "Every treatment's current price is shown on our services page, and the chat "
+            "assistant can tell you the price of any treatment."
         ),
     ),
     Faq(

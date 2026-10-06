@@ -1,8 +1,8 @@
 # Eval results
 
-Run on 07 October 2026 at 01:12. Agent model `openai/gpt-oss-120b`, safety model `openai/gpt-oss-20b`, embeddings `BAAI/bge-small-en-v1.5`.
+Run on 07 October 2026 at 01:41. Agent model `openai/gpt-oss-120b`, safety model `openai/gpt-oss-20b`, embeddings `BAAI/bge-small-en-v1.5`.
 
-**28 of 28 cases passed.** This run: 41,332 tokens, 7.4 minutes.
+**28 of 28 cases passed.** This run: 49,657 tokens, 8.4 minutes.
 
 | Category | Passed |
 |---|---|

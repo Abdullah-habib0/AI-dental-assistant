@@ -177,14 +177,21 @@ async def test_two_messages_at_once_cannot_jumble_the_history(client, monkeypatc
 
 async def test_the_agent_can_book_in_the_middle_of_a_chat(client, monkeypatch):
     """If chat held the database lock while the agent ran, this booking would wait for it
-    and fail. It must go through."""
+    and fail. It must go through.
+
+    Also checks the two-step booking works across real saved conversation history: the
+    prepared summary is saved in one message, loaded back, and confirmed in the next.
+    """
     start_time = f"{next_monday().isoformat()} 10:00"
     use_agent(monkeypatch, scripted(
-        calls("book_appointment", service_slug="check-up-and-clean", dentist_slug="omar-haddad",
+        calls("prepare_booking", service_slug="check-up-and-clean", dentist_slug="omar-haddad",
               start_time=start_time, full_name="Ali Khan", phone="07700 900123"),
-        AIMessage("You're booked in."),
+        AIMessage("Shall I book a check-up with Dr Omar Haddad at 10:00?"),
     ))
-    r = await client.post(CHAT, json={"message": "Yes, book it please"})
+    first = (await client.post(CHAT, json={"message": "Book me a check-up at 10"})).json()
+
+    use_agent(monkeypatch, scripted(calls("confirm_action"), AIMessage("You're booked in.")))
+    r = await client.post(CHAT, json={"message": "Yes please", "conversation_id": first["conversation_id"]})
     assert r.json()["reply"] == "You're booked in."
 
     async with SessionLocal() as session:
