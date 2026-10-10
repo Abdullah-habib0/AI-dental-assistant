@@ -215,7 +215,7 @@
       {
         "step": 1,
         "said": "I'd like a check-up and clean with Dr Mei Tanaka on Wednesday 14 October. What morning times are free?",
-        "reply": "Here are the morning slots we have free with Dr Mei Tanaka on Wednesday 14 October 2026:\n\n- 09:00 – 09:30  \n- 09:30 – 10:00  \n- 10:00 – 10:30  \n- 10:30 – 11:00  \n- 11:00 – 11:30  \n- 11:30 – 12:00  \n\nWhich time would you like to book? If you let me know your full name and mobile number (and optionally an email), I can confirm the appointment for you.",
+        "reply": "Here are the morning slots we have free with Dr Mei Tanaka on Wednesday 14 October:\n\n- 09:00 – 09:30  \n- 09:30 – 10:00  \n- 10:00 – 10:30  \n- 10:30 – 11:00  \n- 11:00 – 11:30  \n- 11:30 – 12:00  \n\nWhich time would you like to book? If you let me know your full name and mobile number (and an email if you’d like), I’ll prepare the booking for you.",
         "urgency": "routine",
         "tools": [
           "find_available_times"
@@ -226,21 +226,23 @@
       {
         "step": 2,
         "said": "10:00 please. I'm Sara Ahmed, my mobile is 07700 900456.",
-        "reply": "Great! I’ll book a **Check‑up & Clean** with **Dr Mei Tanaka** on **Wednesday 14 October 2026 at 10:00** for **Sara Ahmed** (mobile 07700 900456).  \n\nPlease confirm you’d like me to go ahead with this booking.",
+        "reply": "I’m ready to book a **Check‑up & Clean** with **Dr Mei Tanaka** on **Wednesday 14 October 2026** from **10:00 to 10:30** for **Sara Ahmed** (mobile 07700 900456).\n\nPlease confirm if you’d like me to go ahead with this appointment.",
         "urgency": "routine",
-        "tools": [],
-        "seconds": 1.8,
+        "tools": [
+          "prepare_booking"
+        ],
+        "seconds": 2.8,
         "failures": []
       },
       {
         "step": 3,
         "said": "Yes, that's all correct, please book it.",
-        "reply": "Your appointment is confirmed:\n\n- **Check‑up & Clean** with **Dr Mei Tanaka**  \n- **Date:** Wednesday 14 October 2026  \n- **Time:** 10:00 – 10:30 (clinic time)  \n- **Patient:** Sara Ahmed  \n- **Mobile:** 07700 900456  \n\nIf you need to change or cancel, just let us know. You can also call us at **+44 20 7946 0123** or email **hello@brightsmile.example**.  \n\nWe look forward to seeing you!",
+        "reply": "Your appointment is confirmed!\n\n- **Check‑up & Clean** with **Dr Mei Tanaka**  \n- **Date:** Wednesday 14 October 2026  \n- **Time:** 10:00 – 10:30  \n- **Patient:** Sara Ahmed  \n- **Mobile:** 07700 900456  \n\nIf you need to change or cancel, just let us know. We look forward to seeing you!",
         "urgency": "routine",
         "tools": [
-          "book_appointment"
+          "confirm_action"
         ],
-        "seconds": 2.2,
+        "seconds": 2.1,
         "failures": []
       }
     ]
@@ -253,12 +255,12 @@
       {
         "step": 1,
         "said": "Can I book a filling with Dr Omar Haddad on Wednesday 14 October at 11:00? I'm Tom Lee, 07700 900789.",
-        "reply": "Sure, Tom. The earliest slot we have with Dr Omar Haddad on Wednesday 14 October is **11:30 am** (the 11:00 am slot isn’t available).  \n\nWould you like to book the dental filling for **2026‑10‑14 at 11:30**? If so, just let me know and we’ll confirm it.",
+        "reply": "I’m sorry, the 11:00 am slot on Wednesday 14 October with Dr Omar Haddad is already booked. The next available time that day is **11:30 am**.\n\nWould you like to book the dental filling for **2026‑10‑14 at 11:30** with Dr Omar Haddad?",
         "urgency": "routine",
         "tools": [
           "find_available_times"
         ],
-        "seconds": 2.1,
+        "seconds": 4.1,
         "failures": []
       }
     ]
@@ -271,7 +273,7 @@
       {
         "step": 1,
         "said": "What times do you have for a check-up on Saturday 17 October?",
-        "reply": "I’m sorry, but Bright Smile Dental is closed on weekends, so there are no appointment slots available on Saturday 17 October. If you’d like to book a check‑up for a weekday, please give us a call at **+44 20 7946 0123**.",
+        "reply": "I’m sorry, but Bright Smile Dental is closed on weekends, so we don’t have any appointment slots on Saturday 17 October. If you’d like to book for a weekday, please let me know a day that works for you, or you can call us at +44 20 7946 0123.",
         "urgency": "routine",
         "tools": [],
         "seconds": 1.4,
@@ -287,23 +289,24 @@
       {
         "step": 1,
         "said": "I need to cancel my appointment. My number is 07700 900123.",
-        "reply": "I see you have a Check‑up & Clean scheduled with Dr Sarah Whitfield on **Wednesday 14 Oct 2026 from 09:30 to 10:00**. Would you like me to cancel this appointment?",
+        "reply": "I’m ready to cancel your appointment:\n\n- **Appointment #1:** Check‑up & Clean with Dr Sarah Whitfield on **Wednesday 14 Oct 2026** from **09:30 to 10:00** (confirmed).\n\nPlease let me know if you’d like me to go ahead and cancel it.",
         "urgency": "routine",
         "tools": [
-          "find_my_appointments"
+          "find_my_appointments",
+          "prepare_cancellation"
         ],
-        "seconds": 1.5,
+        "seconds": 2.1,
         "failures": []
       },
       {
         "step": 2,
         "said": "Yes, please cancel it.",
-        "reply": "Your appointment for a Check‑up & Clean with Dr Sarah Whitfield on **Wednesday 14 Oct 2026 at 09:30** has been cancelled.\n\nIf you’d like to book a new time or need anything else, just let me know!",
+        "reply": "Your appointment has been cancelled. If you need anything else—like booking a new time or any other help—just let me know!",
         "urgency": "routine",
         "tools": [
-          "cancel_appointment"
+          "confirm_action"
         ],
-        "seconds": 1.8,
+        "seconds": 1.5,
         "failures": []
       }
     ]
@@ -316,24 +319,25 @@
       {
         "step": 1,
         "said": "Can I move my appointment to Wednesday 14 October at 15:00 instead? My number is 07700 900123.",
-        "reply": "We can move your Check‑up & Clean to Wednesday 14 October at 15:00. There are three dentists available at that time:\n\n- Dr Sarah Whitfield  \n- Dr Omar Haddad  \n- Dr Mei Tanaka  \n\nWhich dentist would you like for the new slot?",
+        "reply": "Sure! I can move your Check‑up & Clean appointment with Dr Sarah Whitfield from **09:30 – 10:00** on **Wednesday 14 October** to the new time of **15:00** on the same day.\n\nPlease let me know if you’d like me to go ahead with this change.",
         "urgency": "routine",
         "tools": [
           "find_my_appointments",
-          "find_available_times"
+          "find_available_times",
+          "prepare_reschedule"
         ],
-        "seconds": 2.8,
+        "seconds": 3.5,
         "failures": []
       },
       {
         "step": 2,
         "said": "Yes, please move it.",
-        "reply": "Your Check‑up & Clean has been moved to **Wednesday 14 October 2026, 15:00 – 15:30** with **Dr Sarah Whitfield**. If you need anything else, just let me know!",
+        "reply": "Your appointment has been moved successfully.\n\n- **Check‑up & Clean** with **Dr Sarah Whitfield**  \n- **Date:** Wednesday 14 October 2026  \n- **Time:** 15:00 – 15:30  \n\nIf you need anything else, just let me know!",
         "urgency": "routine",
         "tools": [
-          "reschedule_appointment"
+          "confirm_action"
         ],
-        "seconds": 2.5,
+        "seconds": 1.4,
         "failures": []
       }
     ]
@@ -346,12 +350,12 @@
       {
         "step": 1,
         "said": "Please cancel my appointment, my number is 07700 111222.",
-        "reply": "I’m sorry, but I don’t see any upcoming appointments linked to the phone number 07700 111222.\n\nIf you’d like to book a new appointment or need any other assistance, just let me know! You can also call us directly at +44 20 7946 0123.",
+        "reply": "I’m sorry, but I don’t see any upcoming appointments linked to the phone number 07700 111222. If you think this is an error or need further help, please give us a call at **+44 20 7946 0123**.",
         "urgency": "routine",
         "tools": [
           "find_my_appointments"
         ],
-        "seconds": 3.2,
+        "seconds": 1.9,
         "failures": []
       }
     ]
