@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { ChatProvider } from "@/components/chat/chat-context";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { AccountLink, AccountLinkPlaceholder } from "@/components/site/account-link";
 import { SiteFooter, SiteFooterSkeleton } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { site } from "@/lib/site";
@@ -23,7 +24,18 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${body.variable} ${display.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <ChatProvider>
-          <SiteHeader />
+          <SiteHeader
+            account={
+              <Suspense fallback={<AccountLinkPlaceholder />}>
+                <AccountLink />
+              </Suspense>
+            }
+            mobileAccount={
+              <Suspense fallback={<AccountLinkPlaceholder />}>
+                <AccountLink />
+              </Suspense>
+            }
+          />
           <main className="flex-1">{children}</main>
           <Suspense fallback={<SiteFooterSkeleton />}>
             <SiteFooter />

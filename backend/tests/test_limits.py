@@ -61,3 +61,37 @@ async def test_cors_allows_the_frontend_and_no_one_else(client):
 
     other = await client.options("/api/v1/chat", headers={"Origin": "https://evil.example", **preflight})
     assert "access-control-allow-origin" not in other.headers
+
+
+# --- Visitors arriving through the website's server ---------------------------------
+
+
+async def test_the_websites_visitor_address_is_trusted_only_with_the_secret(client, monkeypatch):
+    """Logged-in requests all come from the website's server. With the right secret its
+    X-Visitor-IP is believed, so each visitor still gets their own limit; without it, a
+    made-up address must not let anyone dodge the limit."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "frontend_secret", "shared-test-secret")
+    through_website = {"x-frontend-secret": "shared-test-secret"}
+
+    for _ in range(5):
+        await client.post(LOGIN, json=WRONG_LOGIN, headers={**through_website, "x-visitor-ip": "203.0.113.1"})
+    blocked = await client.post(LOGIN, json=WRONG_LOGIN, headers={**through_website, "x-visitor-ip": "203.0.113.1"})
+    assert blocked.status_code == 429
+
+    # Another visitor through the same website server is counted separately.
+    other = await client.post(LOGIN, json=WRONG_LOGIN, headers={**through_website, "x-visitor-ip": "203.0.113.2"})
+    assert other.status_code == 401
+
+
+async def test_a_wrong_or_missing_secret_means_the_address_is_ignored(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "frontend_secret", "shared-test-secret")
+    for _ in range(5):
+        await client.post(LOGIN, json=WRONG_LOGIN)
+    # Pretending to be someone else, with a guessed secret or none, doesn't reset the count.
+    for headers in ({"x-visitor-ip": "198.51.100.7"},
+                    {"x-visitor-ip": "198.51.100.7", "x-frontend-secret": "guess"}):
+        assert (await client.post(LOGIN, json=WRONG_LOGIN, headers=headers)).status_code == 429

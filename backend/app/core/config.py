@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # address here (in .env as a JSON list: CORS_ORIGINS=["https://my-site.vercel.app"]).
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Shared with the website's server, so the backend can trust the visitor address it
+    # passes on (see core/rate_limiting.py). Set the same value in both .env files. Left
+    # empty, every visitor coming through the website shares one rate limit.
+    frontend_secret: str | None = None
+
     # No default on purpose. If this is missing from .env the app refuses to start,
     # which is far better than quietly signing tokens with a key everyone can guess.
     secret_key: str

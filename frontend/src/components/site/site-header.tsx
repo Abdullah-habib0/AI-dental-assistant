@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 
 import { OpenChatButton } from "@/components/chat/chat-context";
@@ -12,7 +12,12 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-export function SiteHeader() {
+/**
+ * `account` and `mobileAccount` are the "Log in" / "My appointments" link. They're
+ * rendered on the server and passed in, because only the server can see the httpOnly
+ * login cookie - this header runs in the browser.
+ */
+export function SiteHeader({ account, mobileAccount }: { account: ReactNode; mobileAccount: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -25,6 +30,7 @@ export function SiteHeader() {
             className="rounded-lg px-3 py-2 text-sm text-muted-foreground transition hover:text-foreground aria-[current=page]:font-medium aria-[current=page]:text-foreground"
           />
         </nav>
+        <div className="hidden text-sm text-muted-foreground hover:text-foreground md:block">{account}</div>
         <OpenChatButton size="default" className="hidden md:inline-flex">
           Book online
         </OpenChatButton>
@@ -43,6 +49,9 @@ export function SiteHeader() {
                 className="border-b py-3.5 text-base aria-[current=page]:font-medium aria-[current=page]:text-primary"
               />
             </nav>
+            <div className="border-b py-3.5 text-base" onClick={() => setMenuOpen(false)}>
+              {mobileAccount}
+            </div>
             <div className="mt-8" onClick={() => setMenuOpen(false)}>
               <OpenChatButton className="w-full">Book online</OpenChatButton>
             </div>
