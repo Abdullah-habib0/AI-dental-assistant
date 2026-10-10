@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-sand: var(--sand);
+  --color-warning: var(--warning);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+}
+
+/*
+  Bright Smile Dental. The teal matches the clinic's PDF documents (#0F6E6E), so the
+  site and the paperwork read as one brand. Warm off-white rather than pure white keeps
+  it calm rather than clinical.
+*/
+:root {
+  --background: oklch(0.985 0.005 85);
+  --foreground: oklch(0.27 0.03 205);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.27 0.03 205);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.27 0.03 205);
+  --primary: oklch(0.47 0.08 195);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.955 0.018 195);
+  --secondary-foreground: oklch(0.33 0.06 200);
+  --muted: oklch(0.955 0.01 90);
+  --muted-foreground: oklch(0.48 0.02 205);
+  --accent: oklch(0.955 0.018 195);
+  --accent-foreground: oklch(0.33 0.06 200);
+  --sand: oklch(0.94 0.025 80);
+  --destructive: oklch(0.55 0.2 27);
+  --warning: oklch(0.6 0.14 60);
+  --border: oklch(0.905 0.012 190);
+  --input: oklch(0.88 0.015 190);
+  --ring: oklch(0.47 0.08 195);
+  --radius: 0.75rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-heading tracking-tight text-balance;
+  }
+}
