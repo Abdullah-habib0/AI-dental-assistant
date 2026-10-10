@@ -11,7 +11,7 @@ Run from the backend folder (stop the web server first - it holds the knowledge 
 Running some cases updates their rows in the existing report and keeps the rest, so
 fixing one case doesn't mean paying for a full run again.
 
-A full run uses roughly 100,000 of the 200,000 tokens Groq's free tier allows per day,
+A full run uses roughly 120,000 of the 200,000 tokens Groq's free tier allows per day,
 so run it when you've changed something, not on every save. It paces itself to stay
 under the free tier's 8,000 tokens a minute, so a full run takes several minutes.
 
