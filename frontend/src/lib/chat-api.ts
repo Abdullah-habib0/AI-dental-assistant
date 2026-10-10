@@ -1,11 +1,10 @@
 /**
- * Talking to the chat endpoints, from the browser.
+ * Talking to the chat, from the browser.
  *
- * NEXT_PUBLIC_API_URL is built into the page, so it must be set when the site is built.
- * The backend only accepts browser requests from the addresses in its CORS_ORIGINS.
+ * Requests go to this website's own /api/chat, never to the backend directly. The
+ * website's server adds the login (kept in an httpOnly cookie the browser's JavaScript
+ * can't read) and passes the request on. See lib/chat-proxy.ts.
  */
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 export type Urgency = "routine" | "urgent" | "emergency" | "unavailable";
 
@@ -26,7 +25,7 @@ export class ChatError extends Error {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}/api/v1${path}`, {
+    response = await fetch(`/api${path}`, {
       ...init,
       headers: { "Content-Type": "application/json", ...init?.headers },
     });

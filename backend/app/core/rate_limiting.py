@@ -14,16 +14,40 @@ such as Redis instead.
 
 Behind a proxy (as on most hosting), every request appears to come from the proxy's
 address. Run uvicorn with --proxy-headers there, so it reads the visitor's real address
-from the proxy. The address is never read from request headers here directly, because
-anyone can write any value into a header.
+from the proxy.
+
+The website is a second case. Logged-in requests go browser -> website server -> here,
+so they all arrive from the website's own address, and every visitor would share one
+limit. The website therefore sends the visitor's address in X-Visitor-IP, and that header
+is believed ONLY when it comes with the shared FRONTEND_SECRET. Anyone can write any value
+into a header, so without the secret a fake address would let someone dodge the limit.
 """
 
+import hmac
 import time
 from collections import defaultdict, deque
 
 from fastapi import HTTPException, Request, status
 
+from app.core.config import settings
+
 _MAX_TRACKED_VISITORS = 10_000
+
+
+def visitor_address(request: Request) -> str:
+    """Who is making this request, for counting purposes."""
+    direct = request.client.host if request.client else "unknown"
+    secret = settings.frontend_secret
+    if not secret:
+        return direct
+    sent = request.headers.get("x-frontend-secret", "")
+    # compare_digest takes the same time whatever the input, so the secret can't be
+    # guessed one character at a time by timing the replies.
+    if hmac.compare_digest(sent.encode(), secret.encode()):
+        forwarded = request.headers.get("x-visitor-ip", "").strip()
+        if forwarded:
+            return forwarded
+    return direct
 
 
 class RateLimit:
@@ -35,7 +59,7 @@ class RateLimit:
         self._hits: dict[str, deque[float]] = defaultdict(deque)
 
     async def __call__(self, request: Request) -> None:
-        visitor = request.client.host if request.client else "unknown"
+        visitor = visitor_address(request)
         now = time.monotonic()
 
         hits = self._hits[visitor]
