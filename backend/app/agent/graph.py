@@ -10,6 +10,7 @@ urgent problems go to escalate, which gives a fixed reply and never reaches the 
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
@@ -24,6 +25,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 from app.agent import prompts
 from app.agent.safety import Classifier
+from app.agent.tools import NOTHING_WAITING, confirmation_status
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.features.auth.models import User
@@ -51,6 +53,20 @@ class TurnResult:
     failure: str | None = None
 
 
+# The ways it asks, all seen in real runs: "please confirm", "confirm if this is correct",
+# "is this correct?", "reply yes", "say 'yes' to book", "Shall I book it?". Not a bare
+# "confirm" - "to confirm your booking I'll need your name" is asking for details.
+_YES_REQUEST = re.compile(
+    r"\bplease confirm\b|\bconfirm (if|whether)\b|\bis (this|that|everything) (correct|right|ok)\b"
+    r"|\b(reply|say|type|answer)\b[^.?!\n]{0,12}\byes\b|\bshall i (book|cancel|move)\b",
+    re.I,
+)
+
+
+def _asks_for_a_yes(response: AIMessage) -> bool:
+    return not response.tool_calls and bool(_YES_REQUEST.search(response.text))
+
+
 def _tool_failed(error: Exception) -> str:
     logger.exception("Agent tool failed", exc_info=error)
     return "That tool failed unexpectedly. Apologise, and give the patient the clinic phone number."
@@ -58,6 +74,7 @@ def _tool_failed(error: Exception) -> str:
 
 def build_agent_graph(chat_model: BaseChatModel, classify: Classifier, tools: list[BaseTool]):
     tool_model = chat_model.bind_tools(tools)
+    must_use_a_tool = chat_model.bind_tools(tools, tool_choice="required")
 
     async def safety_check(state: AgentState) -> dict:
         try:
@@ -84,8 +101,20 @@ def build_agent_graph(chat_model: BaseChatModel, classify: Classifier, tools: li
         async with SessionLocal() as session:
             services = await clinic_service.get_services(session)
             dentists = await clinic_service.get_dentists(session)
-        instructions = SystemMessage(prompts.agent_instructions(now, services, dentists))
+        status = confirmation_status(state["messages"])
+        instructions = SystemMessage(
+            prompts.agent_instructions(now, services, dentists) + "\n\nRight now: " + status
+        )
         response = await tool_model.ainvoke([instructions, *state["messages"]], config)
+        if status == NOTHING_WAITING and _asks_for_a_yes(response):
+            # It asked the patient to confirm something it never prepared, or that has
+            # expired, so their "yes" would do nothing. Throw that reply away and ask
+            # again, once - this time it must call a tool, because being told wasn't
+            # enough: in real runs it wrote the same reply again.
+            logger.warning("Agent asked for a yes with nothing prepared; making it prepare first")
+            response = await must_use_a_tool.ainvoke(
+                [instructions, *state["messages"], response, SystemMessage(prompts.PREPARE_FIRST)], config
+            )
         return {"messages": [response]}
 
     graph = StateGraph(AgentState)

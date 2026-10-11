@@ -97,6 +97,16 @@ async def test_instructions_carry_the_clinic_facts_from_the_database():
     assert "Monday 05 October 2026" in text
 
 
+def test_instructions_list_the_coming_days_so_the_model_never_works_out_dates():
+    saturday = datetime(2026, 10, 10, 17, 0)
+    text = prompts.agent_instructions(saturday, [], [])
+
+    assert "- Saturday 10 October (today): closed" in text
+    assert "- Sunday 11 October (tomorrow): closed" in text
+    assert "- Monday 12 October: open" in text
+    assert "- Friday 23 October: open" in text  # two weeks ahead, for "next Friday"
+
+
 async def test_a_price_change_reaches_the_agent_on_the_next_message():
     async with SessionLocal() as session:
         async with session.begin():
@@ -252,6 +262,60 @@ async def test_nothing_to_confirm_when_nothing_was_prepared_or_it_failed():
     _, result = await turn(history, "yes", calls("confirm_action"), AIMessage("Hmm."))
     assert "didn't pass its checks" in tool_said(result, "confirm_action")
     assert await appointment_count() == 1  # only the one booked directly
+
+
+async def test_the_agent_is_told_whether_anything_is_waiting_for_a_yes():
+    """Without this the agent guessed, asked the patient to confirm something that had
+    expired, and the patient's "yes" was wasted."""
+    seen = []
+
+    class Spy(FakeModel):
+        async def _agenerate(self, messages, **kwargs):
+            seen.append(messages[0].content.split("Right now: ")[1])
+            return await super()._agenerate(messages, **kwargs)
+
+    async def spy_turn(history, says, *replies):
+        result = await run_turn(graph_with(Spy(messages=iter(replies))), history, says, user=None)
+        return history + result.new_messages
+
+    history = await spy_turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    assert seen[0].startswith("Nothing is waiting")  # before preparing
+    assert seen[1].startswith("You prepared something")  # just prepared: read it back, don't confirm
+
+    history = await spy_turn(history, "Yes", AIMessage("..."))
+    assert seen[2].startswith("The latest prepared summary is waiting")
+
+    await spy_turn(history, "Actually, I want two appointments", AIMessage("..."))
+    assert seen[3].startswith("Nothing is waiting")  # the patient moved on, so it expired
+
+
+async def test_asking_for_a_yes_with_nothing_prepared_is_sent_back_to_prepare_first():
+    """The real model did this: "Please reply yes to book" with nothing prepared, so the
+    patient's yes did nothing and they had to say it again."""
+    _, result = await turn([], "Book me in at 10, I'm Sara, 07700 900456",
+                           AIMessage("Dental check-up at 10:00 - please reply **yes** to book."),
+                           prepare_sara(), AIMessage("Shall I book this?"))
+    assert "Ready to book" in tool_said(result, "prepare_booking")
+    assert result.reply == "Shall I book this?"
+    assert all("reply **yes**" not in m.content for m in result.new_messages)  # the bad reply is gone
+
+    # Its other way of asking, from a real run: "please confirm", with no "yes" at all.
+    _, result = await turn([], "same as previous",
+                           AIMessage("Please confirm if you'd like to keep this slot."),
+                           prepare_sara(11), AIMessage("Shall I book this?"))
+    assert "Ready to book" in tool_said(result, "prepare_booking")
+
+
+async def test_an_ordinary_yes_in_a_reply_is_left_alone():
+    # Nothing is prepared in either turn, but neither reply asks the patient to say yes.
+    # (A second model call would run out of scripted replies and fail the turn.)
+    _, result = await turn([], "Is there parking?", AIMessage("Yes, there's street parking nearby."))
+    assert result.failure is None
+    _, result = await turn([], "The first one", AIMessage("To confirm your booking, I'll need your full name."))
+    assert result.failure is None
+    history, _ = await turn([], "Book me in at 10", prepare_sara(), AIMessage("Shall I book this?"))
+    _, result = await turn(history, "Yes", calls("confirm_action"), AIMessage("Booked - see you Monday!"))
+    assert result.failure is None and result.reply == "Booked - see you Monday!"
 
 
 async def test_a_time_taken_between_summary_and_yes_changes_nothing():

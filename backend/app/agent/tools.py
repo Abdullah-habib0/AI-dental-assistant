@@ -333,6 +333,31 @@ def pending_action(messages: list[BaseMessage]) -> tuple[dict | None, str]:
     return None, "Nothing has been prepared. Use prepare_booking, prepare_cancellation or prepare_reschedule first."
 
 
+JUST_PREPARED = ("You prepared something since the patient's latest message. Read that summary back and ask "
+                 "them to confirm. Don't call confirm_action yet.")
+WAITING = ("The latest prepared summary is waiting for the patient's answer. If their latest message clearly "
+           "says yes to it, call confirm_action now. If they changed anything, prepare it again.")
+NOTHING_WAITING = ("Nothing is waiting for the patient's yes - anything prepared earlier has expired or been "
+                   "done. Before you ask the patient to confirm a booking, cancellation or move, call the "
+                   "prepare tool and read back its summary.")
+
+
+def confirmation_status(messages: list[BaseMessage]) -> str:
+    """Tells the agent, every time it thinks, whether anything is waiting for a yes.
+
+    The agent can't see the rule in pending_action, so it used to guess - and often asked
+    the patient to confirm something that had already expired, or that it never prepared.
+    The patient's "yes" was then wasted, and they had to say it again.
+    """
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        if isinstance(message, ToolMessage) and message.name in PREPARE_TOOLS and message.artifact:
+            return JUST_PREPARED
+    action, _ = pending_action(messages)
+    return WAITING if action else NOTHING_WAITING
+
+
 ALL_TOOLS = [
     search_clinic_documents,
     find_available_times,
